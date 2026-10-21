@@ -1,0 +1,9 @@
+# Your own trading data: config (holds your SEC name and email), holdings, orders, state
+trader/
+
+# The upstream clone the skills were copied from
+repo/
+
+__pycache__/
+*.pyc
+*.tmp
