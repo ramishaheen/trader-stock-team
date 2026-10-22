@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex">
   <title>Trader Desk</title>
+  <script src="/theme-init.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
@@ -20,7 +21,10 @@
       </div>
       <div class="market" id="market" aria-live="polite"><span class="dot"></span><span>Market status</span></div>
       <nav id="nav" aria-label="Sections"></nav>
-      <p class="side-note">Research and planning only. This dashboard never places orders.</p>
+      <div class="side-foot">
+        <div id="theme"></div>
+        <p class="side-note">Research and planning only. This dashboard never places orders.</p>
+      </div>
     </aside>
     <main id="view" tabindex="-1"></main>
   </div>

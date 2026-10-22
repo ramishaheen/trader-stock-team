@@ -1,5 +1,7 @@
 // Router and shared state for the dashboard.
-import { api, errorBox, h, skeleton, toast } from "./ui.js";
+import { actionBtn, api, errorBox, fmt, h, skeleton, toast } from "./ui.js";
+import { icon } from "./icons.js";
+import { themeToggle } from "./theme.js";
 import { copycat, orders, overview } from "./views-plan.js";
 import { alerts, congress, news, research } from "./views-watch.js";
 import { holdings, settings, tax } from "./views-books.js";
@@ -47,8 +49,19 @@ function drawNav() {
     return h("button", {
       type: "button", "aria-current": name === active ? "page" : null,
       onclick: () => { location.hash = name; },
-    }, label, n ? h("span", { class: "count" }, String(n)) : null);
+    }, icon(name), h("span", { class: "nav-label" }, label), n ? h("span", { class: "count" }, String(n)) : null);
   }));
+}
+
+// Right side of every page header: data freshness and a reload.
+function pageMeta() {
+  const asOf = ctx.state.prices?.as_of;
+  return h("div", { class: "view-meta" },
+    h("span", { class: "meta-time" }, asOf ? `Data as of ${fmt.time(asOf)}` : "No price data yet"),
+    actionBtn(h("span", { class: "btn-label" }, icon("refresh", 16), "Reload data"), async () => {
+      await ctx.refresh();
+      toast("Data reloaded");
+    }, { kind: "ghost", title: "Re-read the trader/ files" }));
 }
 
 function render() {
@@ -59,6 +72,7 @@ function render() {
   drawNav();
   try {
     draw(view, ctx);
+    view.querySelector(".view-head")?.append(pageMeta());
   } catch (e) {
     view.replaceChildren(errorBox(`This page failed to draw: ${e.message}`));
   }
@@ -79,6 +93,8 @@ async function clock() {
 }
 
 window.addEventListener("hashchange", () => { render(); window.scrollTo({ top: 0 }); });
+
+document.getElementById("theme").replaceChildren(themeToggle());
 
 (async function start() {
   view.replaceChildren(skeleton(8));

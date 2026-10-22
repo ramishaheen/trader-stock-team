@@ -55,6 +55,12 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertIn(b"<title>", body)
 
+    def test_every_local_script_is_whitelisted(self):
+        # index.html and the ES modules reference these; a missing STATIC entry is a 404.
+        for path in ("/theme-init.js", "/theme.js", "/icons.js", "/app.js", "/styles.css"):
+            status, _ = self.call("GET", path)
+            self.assertEqual(status, 200, path)
+
     def test_state_returns_files(self):
         status, body = self.call("GET", "/api/state")
         self.assertEqual(status, 200)

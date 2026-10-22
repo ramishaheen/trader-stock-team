@@ -1,6 +1,6 @@
 // News, Congress, Research (analyst + screener) and Alerts.
 import {
-  actionBtn, api, badge, check, emptyState, field, fmt, h, input, load, panel, result,
+  actionBtn, api, badge, check, emptyState, field, filterable, fmt, h, input, load, panel, result,
   run, safeLink, select, table, tickerList, toast, tone,
 } from "./ui.js";
 import { head } from "./views-plan.js";
@@ -25,7 +25,7 @@ export function news(root, ctx) {
 
   const go = actionBtn("Check news", async () => {
     const r = await run("news", { hours: +hours.value || 48, tickers: tickerList(tick.value), all: all.box.checked, mark_seen: mark.box.checked });
-    out.replaceChildren(result(r, items));
+    out.replaceChildren(result(r, (d) => filterable(items(d), { label: "Filter headlines", noun: "items" })));
   }, { kind: "primary" });
 
   root.replaceChildren(
@@ -87,7 +87,7 @@ export function congress(root, ctx) {
             }, { kind: "primary" }),
             actionBtn("Browse all filings", async () => {
               const r = await run("pelosi_index", { ...params(), limit: 100 });
-              out.replaceChildren(result(r, index));
+              out.replaceChildren(result(r, (list) => filterable(index(list), { label: "Filter filings", noun: "filings" })));
             }))),
       }),
       panel("Filings", { i: 1, flush: true, body: out })));

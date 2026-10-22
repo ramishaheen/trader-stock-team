@@ -1,4 +1,5 @@
 // DOM and API helpers. Everything external is inserted as text, never as HTML.
+import { icon } from "./icons.js";
 
 export async function api(method, path, body) {
   const opts = { method, headers: { "X-Trader-Dashboard": "1" } };
@@ -195,4 +196,30 @@ export function result(r, render) {
   else if (r.text) parts.push(h("pre", { class: "out" }, r.text));
   if (r.warnings) parts.push(h("pre", { class: "out small" }, r.warnings));
   return h("div", {}, parts.length ? parts : emptyState("No output", "The tool finished without printing anything."));
+}
+
+// Wraps a table() or .list node with a search box that hides rows whose text
+// does not contain the query. Returns the node untouched when it has no rows.
+export function filterable(node, { label = "Filter", noun = "rows" } = {}) {
+  let rows = [...node.querySelectorAll("tbody > tr")];
+  if (!rows.length) rows = [...node.querySelectorAll(".list > .item")];
+  if (!rows.length) return node;
+  const texts = rows.map((r) => r.textContent.toLowerCase());
+  const count = h("span", { class: "filter-count", "aria-live": "polite" }, `${rows.length} ${noun}`);
+  const none = h("div", { class: "empty", hidden: true }, h("strong", {}, "No matches"), h("span", {}, "Try a shorter or different search."));
+  const box = h("input", {
+    type: "search", autocomplete: "off", spellcheck: "false", "aria-label": label, placeholder: `${label}…`,
+    oninput: () => {
+      const q = box.value.trim().toLowerCase();
+      let shown = 0;
+      rows.forEach((r, i) => {
+        const hit = !q || texts[i].includes(q);
+        r.hidden = !hit;
+        if (hit) shown += 1;
+      });
+      none.hidden = shown > 0;
+      count.textContent = q ? `${shown} of ${rows.length} ${noun}` : `${rows.length} ${noun}`;
+    },
+  });
+  return h("div", { class: "filterable" }, h("div", { class: "filter-bar" }, h("label", { class: "filter-input" }, icon("search", 16), box), count), node, none);
 }

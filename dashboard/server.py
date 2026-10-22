@@ -30,6 +30,9 @@ STATIC = {"/": ("index.html", "text/html; charset=utf-8"),
           "/views-books.js": ("views-books.js", "text/javascript; charset=utf-8"),
           "/views-team.js": ("views-team.js", "text/javascript; charset=utf-8"),
           "/characters.js": ("characters.js", "text/javascript; charset=utf-8"),
+          "/icons.js": ("icons.js", "text/javascript; charset=utf-8"),
+          "/theme.js": ("theme.js", "text/javascript; charset=utf-8"),
+          "/theme-init.js": ("theme-init.js", "text/javascript; charset=utf-8"),
           "/styles.css": ("styles.css", "text/css; charset=utf-8")}
 MAX_BODY = 256 * 1024
 CSRF_HEADER = "X-Trader-Dashboard"

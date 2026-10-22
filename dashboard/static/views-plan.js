@@ -1,6 +1,6 @@
 // Overview, Copycat and Orders: from a fund's 13F to sized, risk-checked tickets.
 import {
-  actionBtn, api, badge, check, emptyState, field, fmt, h, input, load, panel, result,
+  actionBtn, api, badge, check, emptyState, field, filterable, fmt, h, input, load, panel, result,
   run, table, tickerList, toast, tone,
 } from "./ui.js";
 
@@ -31,6 +31,44 @@ function ordersTable(state) {
   ], orders, "Run Size to budget to turn your targets into proposed orders.");
 }
 
+// Fixed categorical order; colours are --c1..--c8 tokens tuned for both themes.
+const SERIES = 8;
+const seriesVar = (i) => `var(--c${(i % SERIES) + 1})`;
+
+function kpiTiles(state, cfg, investable) {
+  const orders = state.orders?.orders?.length ?? 0;
+  const checked = state.risk_state?.results?.length ?? 0;
+  const live = cfg.paper === false;
+  const tile = (label, value, hint, kind = "") => h("div", { class: `kpi ${kind}`, role: "listitem" },
+    h("div", { class: "kpi-label" }, label), h("div", { class: "kpi-value" }, value), hint ? h("div", { class: "kpi-hint" }, hint) : null);
+  return h("div", { class: "kpis", role: "list", "aria-label": "Account rules" },
+    tile("Budget", fmt.usd(cfg.budget), "from trader/config.json"),
+    tile("To invest", fmt.usd(investable), "budget minus cash buffer"),
+    tile("Cash buffer", fmt.pct(cfg.cash_buffer_pct, 0), `${fmt.usd((cfg.budget ?? 0) - investable)} kept aside`),
+    tile("Max per stock", fmt.pct(cfg.max_position_pct, 0), "cap on any one position"),
+    tile("Account", live ? "LIVE" : "Paper", live ? "real money account" : "simulated account", live ? "bad" : ""),
+    tile("Orders proposed", String(orders), orders ? `${checked} risk-checked` : "none yet"));
+}
+
+function allocation(weights) {
+  const total = weights.reduce((s, w) => s + (+w.weight || 0), 0);
+  if (!weights.length || total <= 0) return null;
+  const label = `Target allocation: ${weights.map((w) => `${w.ticker} ${fmt.pct(w.weight, 1)}`).join(", ")}`;
+  return h("div", { class: "alloc" },
+    h("div", { class: "alloc-bar", role: "img", "aria-label": label },
+      weights.map((w, i) => h("span", { style: `width:${((+w.weight || 0) / total) * 100}%;background:${seriesVar(i)}`, title: `${w.ticker} ${fmt.pct(w.weight, 1)}` }))),
+    h("ul", { class: "alloc-legend", "aria-label": "Allocation legend" },
+      weights.map((w, i) => h("li", {},
+        h("i", { class: "swatch", style: `background:${seriesVar(i)}`, "aria-hidden": "true" }),
+        h("span", { class: "mono" }, w.ticker), h("span", { class: "dim mono" }, fmt.pct(w.weight, 1))))));
+}
+
+function weightCell(w, max) {
+  const pct = max > 0 ? Math.max(0, Math.min(100, ((+w.weight || 0) / max) * 100)) : 0;
+  return h("span", { class: "wcell" },
+    h("span", { class: "wbar", "aria-hidden": "true" }, h("i", { style: `width:${pct}%` })), fmt.pct(w.weight));
+}
+
 export function overview(root, ctx) {
   const { state } = ctx;
   const cfg = state.config ?? {};
@@ -38,16 +76,13 @@ export function overview(root, ctx) {
   const detail = state.prices?.detail ?? {};
   const investable = (cfg.budget ?? 0) * (1 - (cfg.cash_buffer_pct ?? 0) / 100);
 
-  const stats = h("div", { class: "stats" },
-    [["Budget", fmt.usd(cfg.budget)], ["To invest", fmt.usd(investable)],
-      ["Cash buffer", fmt.pct(cfg.cash_buffer_pct, 0)], ["Max per stock", fmt.pct(cfg.max_position_pct, 0)],
-      ["Account", cfg.paper === false ? "LIVE" : "Paper"], ["Orders proposed", String(state.orders?.orders?.length ?? 0)]]
-      .map(([k, v]) => h("div", {}, h("div", { class: "stat-label" }, k), h("div", { class: "stat-value" }, v))));
+  const weights = weightsOf(state);
+  const maxWeight = Math.max(0, ...weights.map((w) => +w.weight || 0));
 
   const targets = table([
     { key: "ticker", label: "Ticker", cls: () => "mono" },
     { key: "name", label: "Name" },
-    { label: "Weight", num: true, render: (w) => fmt.pct(w.weight) },
+    { label: "Weight", num: true, render: (w) => weightCell(w, maxWeight) },
     { label: "Before cap", num: true, render: (w) => fmt.usd((investable * w.weight) / 100) },
     { label: "Price", num: true, render: (w) => fmt.usd(prices[w.ticker]) },
     {
@@ -62,7 +97,7 @@ export function overview(root, ctx) {
         return p && prev ? tone(p - prev) : "";
       },
     },
-  ], weightsOf(state), "No targets yet. Copy an investor on the Copycat page or type your own weights there.");
+  ], weights, "No targets yet. Copy an investor on the Copycat page or type your own weights there.");
 
   const step = (label, action, params) => actionBtn(label, async () => {
     const r = await run(action, params());
@@ -87,9 +122,9 @@ export function overview(root, ctx) {
   root.replaceChildren(
     head("Overview", "Your targets, today's prices and the orders they turn into. Proposals only: nothing here reaches a broker."),
     h("div", { class: "grid" },
-      panel("Account rules", { sub: `From trader/config.json. Prices as of ${fmt.time(state.prices?.as_of)}.`, body: stats, flush: true, i: 0 }),
+      kpiTiles(state, cfg, investable),
       h("div", { class: "grid two" },
-        panel("Targets", { sub: state.targets?.source ?? "Not set", body: targets, flush: true, i: 1 }),
+        panel("Targets", { sub: state.targets?.source ?? "Not set", body: h("div", {}, allocation(weights), targets), flush: true, i: 1 }),
         panel("Pipeline", {
           sub: "Run in order. Each step writes the file the next one reads.",
           i: 2,
@@ -113,14 +148,15 @@ export function copycat(root, ctx) {
 
   const showDiff = (cik) => load(diffOut, run("copycat_diff", { cik }), (r) => result(r, (d) => h("div", {},
     h("p", { class: "note", style: "margin:12px 18px" }, `${d.meta.filer}: ${d.meta.period} vs ${d.meta.prior_period}, filed ${d.meta.filed}`),
-    table([
+    filterable(table([
       { label: "Status", render: (c) => badge(c.status, c.status === "NEW" || c.status === "ADDED" ? "ok" : c.status === "SOLD OUT" ? "bad" : "warn") },
       { label: "Ticker", render: (c) => c.ticker || "–", cls: () => "mono" },
       { key: "issuer", label: "Issuer" },
       { label: "Shares before", num: true, render: (c) => fmt.num(c.shares_before, 0) },
       { label: "Shares after", num: true, render: (c) => fmt.num(c.shares_after, 0) },
       { label: "Change", num: true, render: (c) => (c.change_pct == null ? "–" : fmt.signedPct(c.change_pct)), cls: (c) => tone(c.change) },
-    ], d.changes.filter((c) => c.status !== "SAME" && c.status !== "UNCHANGED"), "No changes since the prior quarter."))));
+    ], d.changes.filter((c) => c.status !== "SAME" && c.status !== "UNCHANGED"), "No changes since the prior quarter."),
+    { label: "Filter changes", noun: "changes" }))));
 
   const find = actionBtn("Find", async () => {
     const r = await run("copycat_find", { query: q.value });
