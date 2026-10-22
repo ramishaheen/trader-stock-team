@@ -19,6 +19,7 @@ from urllib.parse import urlparse
 
 import actions
 import store
+from activity import Activity
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 STATIC = {"/": ("index.html", "text/html; charset=utf-8"),
@@ -27,6 +28,8 @@ STATIC = {"/": ("index.html", "text/html; charset=utf-8"),
           "/views-plan.js": ("views-plan.js", "text/javascript; charset=utf-8"),
           "/views-watch.js": ("views-watch.js", "text/javascript; charset=utf-8"),
           "/views-books.js": ("views-books.js", "text/javascript; charset=utf-8"),
+          "/views-team.js": ("views-team.js", "text/javascript; charset=utf-8"),
+          "/characters.js": ("characters.js", "text/javascript; charset=utf-8"),
           "/styles.css": ("styles.css", "text/css; charset=utf-8")}
 MAX_BODY = 256 * 1024
 CSRF_HEADER = "X-Trader-Dashboard"
@@ -57,6 +60,7 @@ def _reject_constant(name: str):
 
 class Handler(BaseHTTPRequestHandler):
     home = "."
+    activity: Activity
     allowed_hosts: set[str] = set()
     server_version = "TraderDashboard/1.0"
 
@@ -129,6 +133,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(HTTPStatus.OK, {"status": "ok"})
         if path == "/api/state":
             return self._guard(lambda: read_state(self.home))
+        if path == "/api/activity":
+            return self._guard(self.activity.snapshot)
         if path.startswith("/api/files/"):
             return self._guard(lambda: store.read(self.home, path[len("/api/files/"):]))
         self._json(HTTPStatus.NOT_FOUND, error="not found")
@@ -145,12 +151,19 @@ class Handler(BaseHTTPRequestHandler):
         def go():
             params = self._body()
             actions.build(name, params)  # validate before taking the lock
-            if name in READ_ONLY:
-                return actions.run(name, params, self.home)
-            # Slow network actions get their own lock so a long SEC or news
-            # fetch does not block saving settings or sizing orders.
-            with slow_locks[name] if name in actions.SLOW else write_lock:
-                return actions.run(name, params, self.home)
+            tid = self.activity.start(name)
+            result = {"ok": False, "error": "the server failed while running %s" % name}
+            try:
+                if name in READ_ONLY:
+                    result = actions.run(name, params, self.home)
+                else:
+                    # Slow network actions get their own lock so a long SEC or news
+                    # fetch does not block saving settings or sizing orders.
+                    with slow_locks[name] if name in actions.SLOW else write_lock:
+                        result = actions.run(name, params, self.home)
+                return result
+            finally:
+                self.activity.finish(tid, result)
         self._mutating(go)
 
     def do_PUT(self) -> None:
@@ -188,6 +201,7 @@ class Handler(BaseHTTPRequestHandler):
 def make_server(home: str, port: int) -> ThreadingHTTPServer:
     handler = type("BoundHandler", (Handler,), {})
     handler.home = os.path.abspath(home)
+    handler.activity = Activity(os.path.join(handler.home, "trader", "state", "activity.json"))
     os.makedirs(os.path.join(handler.home, "trader"), exist_ok=True)
     httpd = ThreadingHTTPServer(("127.0.0.1", port), handler)
     real = httpd.server_address[1]

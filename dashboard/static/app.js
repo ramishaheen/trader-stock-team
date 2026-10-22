@@ -3,8 +3,10 @@ import { api, errorBox, h, skeleton, toast } from "./ui.js";
 import { copycat, orders, overview } from "./views-plan.js";
 import { alerts, congress, news, research } from "./views-watch.js";
 import { holdings, settings, tax } from "./views-books.js";
+import { team } from "./views-team.js";
 
 const VIEWS = [
+  ["team", "Team", team],
   ["overview", "Overview", overview, (s) => s.targets?.weights?.length],
   ["copycat", "Copycat", copycat],
   ["orders", "Orders", orders, (s) => s.orders?.orders?.length],
@@ -51,6 +53,9 @@ function drawNav() {
 
 function render() {
   const [, , draw] = current();
+  // Stop the previous page's timers (the Team board polls for activity).
+  ctx.cleanup?.();
+  ctx.cleanup = null;
   drawNav();
   try {
     draw(view, ctx);

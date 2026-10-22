@@ -21,6 +21,7 @@ folder above `dashboard/`). Environment: `TRADER_PORT`, `TRADER_HOME`,
 
 | Page | Controls |
 | --- | --- |
+| Team | every skill as a role-dressed agent on a live graph: who is working, what they hand to whom (animated), a persisted activity feed, and one-click tasks per agent |
 | Overview | targets, prices, proposed orders with risk verdicts; one-click prices → sizing → risk |
 | Copycat | find a 13F filer, see what changed last quarter, copy the top N, edit weights by hand |
 | Orders | size to budget, run the risk check, read the order tickets |

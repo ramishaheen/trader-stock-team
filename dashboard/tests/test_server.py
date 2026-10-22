@@ -72,6 +72,15 @@ class ServerTests(unittest.TestCase):
         status, body = self.call("POST", "/api/run/tickets", {})
         self.assertIsInstance(body["data"]["data"], list)
 
+    def test_runs_show_up_in_agent_activity(self):
+        self.call("POST", "/api/run/screen", {})
+        status, body = self.call("GET", "/api/activity")
+        self.assertEqual(status, 200)
+        latest = body["data"]["recent"][0]
+        self.assertEqual((latest["agent"], latest["action"]), ("screener", "screen"))
+        self.assertRegex(latest["summary"], r"^\d+ passed, \d+ failed$")
+        self.assertEqual(body["data"]["running"], [])
+
     def test_screener_runs(self):
         status, body = self.call("POST", "/api/run/screen", {})
         self.assertTrue(body["data"]["ok"], body)
